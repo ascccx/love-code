@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>I love you</title>
+  <meta name="keywords" content="爱心代码，程序员表白">
+  <meta name="description" content="爱心代码，HTML文件">
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background: #000;
+      overflow: hidden;
+    }
+    canvas {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    #child {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 10;
+    }
+    h4 {
+      font-family: "STKaiti", "KaiTi", cursive;
+      font-size: 40px;
+      color: #f584b7;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <!-- 爱心文字 -->
+  <div id="child">
+    <h4>💗我永远为你着迷</h4>
+  </div>
+
+  <!-- 粒子爱心动画 -->
+  <canvas id="pinkboard"></canvas>
+
+  <!-- 代码雨动画 -->
+  <canvas id="canvas"></canvas>
+
+  <script>
+    // 代码雨效果
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.height = window.innerHeight;
+    canvas.width = window.innerWidth;
+
+    const texts = 'I LOVE U'.split('');
+    const fontSize = 16;
+    const columns = canvas.width / fontSize;
+    const drops = [];
+    for (let x = 0; x < columns; x++) {
+      drops[x] = 1;
+    }
+
+    function drawMatrix() {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#f584b7';
+      ctx.font = fontSize + 'px arial';
+      for (let i = 0; i < drops.length; i++) {
+        const text = texts[Math.floor(Math.random() * texts.length)];
+        ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+        if (drops[i] * fontSize > canvas.height || Math.random() > 0.95) {
+          drops[i] = 0;
+        }
+        drops[i]++;
+      }
+    }
+
+    setInterval(drawMatrix, 33);
+  </script>
+
+  <script>
+    // 爱心粒子动画
+    const settings = {
+      particles: {
+        length: 500,
+        duration: 2,
+        velocity: 100,
+        effect: -0.75,
+        size: 30,
+      },
+    };
+
+    const Point = function (x = 0, y = 0) {
+      this.x = x;
+      this.y = y;
+    };
+    Point.prototype.clone = function () {
+      return new Point(this.x, this.y);
+    };
+    Point.prototype.length = function (length) {
+      if (length === undefined)
+        return Math.sqrt(this.x * this.x + this.y * this.y);
+      this.normalize();
+      this.x *= length;
+      this.y *= length;
+      return this;
+    };
+    Point.prototype.normalize = function () {
+      const length = this.length();
+      this.x /= length;
+      this.y /= length;
+      return this;
+    };
+
+    const Particle = function () {
+      this.position = new Point();
+      this.velocity = new Point();
+      this.acceleration = new Point();
+      this.age = 0;
+    };
+    Particle.prototype.initialize = function (x, y, dx, dy) {
+      this.position.x = x;
+      this.position.y = y;
+      this.velocity.x = dx;
+      this.velocity.y = dy;
+      this.acceleration.x = dx * settings.particles.effect;
+      this.acceleration.y = dy * settings.particles.effect;
+      this.age = 0;
+    };
+    Particle.prototype.update = function (deltaTime) {
+      this.position.x += this.velocity.x * deltaTime;
+      this.position.y += this.velocity.y * deltaTime;
+      this.velocity.x += this.acceleration.x * deltaTime;
+      this.velocity.y += this.acceleration.y * deltaTime;
+      this.age += deltaTime;
+    };
+    Particle.prototype.draw = function (ctx, image) {
+      function ease(t) {
+        return (--t) * t * t + 1;
+      }
+      const size = image.width * ease(this.age / settings.particles.duration);
+      ctx.globalAlpha = 1 - this.age / settings.particles.duration;
+      ctx.drawImage(image, this.position.x - size / 2, this.position.y - size / 2, size, size);
+    };
+
+    const ParticlePool = function (length) {
+      this.particles = new Array(length).fill().map(() => new Particle());
+      this.firstActive = 0;
+      this.firstFree = 0;
+      this.duration = settings.particles.duration;
+    };
+    ParticlePool.prototype.add = function (x, y, dx, dy) {
+      this.particles[this.firstFree].initialize(x, y, dx, dy);
+      this.firstFree = (this.firstFree + 1) % this.particles.length;
+      if (this.firstFree === this.firstActive)
+        this.firstActive = (this.firstActive + 1) % this.particles.length;
+    };
+    ParticlePool.prototype.update = function (deltaTime) {
+      let i = this.firstActive;
+      while (i !== this.firstFree) {
+        const particle = this.particles[i];
+        particle.update(deltaTime);
+        if (particle.age >= this.duration) {
+          this.firstActive = (this.firstActive + 1) % this.particles.length;
+        } else {
+          i = (i + 1) % this.particles.length;
+        }
+      }
+    };
+    ParticlePool.prototype.draw = function (ctx, image) {
+      let i = this.firstActive;
+      while (i !== this.firstFree) {
+        this.particles[i].draw(ctx, image);
+        i = (i + 1) % this.particles.length;
+      }
+    };
+
+    (function (canvas) {
+      const ctx = canvas.getContext('2d');
+      const pool = new ParticlePool(settings.particles.length);
+      const particleRate = settings.particles.length / settings.particles.duration;
+      let time;
+
+      function pointOnHeart(t) {
+        return new Point(
+          160 * Math.pow(Math.sin(t), 3),
+          130 * Math.cos(t) - 50 * Math.cos(2 * t) - 20 * Math.cos(3 * t) - 10 * Math.cos(4 * t) + 25
+        );
+      }
+
+      const image = (() => {
+        const c = document.createElement('canvas');
+        const ctx = c.getContext('2d');
+        c.width = settings.particles.size;
+        c.height = settings.particles.size;
+
+        function to(t) {
+          const point = pointOnHeart(t);
+          point.x = settings.particles.size / 2 + point.x * settings.particles.size / 350;
+          point.y = settings.particles.size / 2 - point.y * settings.particles.size / 350;
+          return point;
+        }
+
+        ctx.beginPath();
+        let t = -Math.PI;
+        let point = to(t);
+        ctx.moveTo(point.x, point.y);
+        while (t < Math.PI) {
+          t += 0.01;
+          point = to(t);
+          ctx.lineTo(point.x, point.y);
+        }
+        ctx.closePath();
+        ctx.fillStyle = '#ea80b0';
+        ctx.fill();
+        const img = new Image();
+        img.src = c.toDataURL();
+        return img;
+      })();
+
+      function render() {
+        requestAnimationFrame(render);
+        const newTime = Date.now() / 1000;
+        const deltaTime = newTime - (time || newTime);
+        time = newTime;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const amount = particleRate * deltaTime;
+        for (let i = 0; i < amount; i++) {
+          const pos = pointOnHeart(Math.PI - 2 * Math.PI * Math.random());
+          const dir = pos.clone().length(settings.particles.velocity);
+          pool.add(canvas.width / 2 + pos.x, canvas.height / 2 - pos.y, dir.x, -dir.y);
+        }
+
+        pool.update(deltaTime);
+        pool.draw(ctx, image);
+      }
+
+      function onResize() {
+        canvas.width = canvas.clientWidth;
+        canvas.height = canvas.clientHeight;
+      }
+      window.onresize = onResize;
+      setTimeout(() => {
+        onResize();
+        render();
+      }, 10);
+    })(document.getElementById('pinkboard'));
+  </script>
+</body>
+</html>
